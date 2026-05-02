@@ -103,22 +103,33 @@ public class AuthService {
         String openid = (String) sessionResp.get("openid");
         String unionid = (String) sessionResp.get("unionid");
 
-        // 根据 openid 查找用户
+        // 根据 openid 查找用户（含已删除的）
         User user = userMapper.selectOne(
                 new LambdaQueryWrapper<User>().eq(User::getOpenid, openid));
 
         boolean isNew = false;
         if (user == null) {
-            // 新用户：创建账号，随机头像和昵称
-            user = new User();
-            user.setOpenid(openid);
-            user.setUnionid(unionid);
-            user.setNickname("微信用户" + (1000 + random.nextInt(9000)));
-            user.setAvatarUrl(DEFAULT_AVATARS.get(random.nextInt(DEFAULT_AVATARS.size())));
-            user.setRole("USER");
-            user.setStatus(1);
-            userMapper.insert(user);
-            isNew = true;
+            // 检查是否有已软删除的用户，有则恢复
+            user = selectDeletedUserByOpenid(openid);
+            if (user != null) {
+                user.setDeletedAt(null);
+                user.setUnionid(unionid);
+                user.setStatus(1);
+                userMapper.updateById(user);
+                // 恢复关联的 student_profiles
+                restoreStudentProfile(user.getId());
+            } else {
+                // 新用户：创建账号，随机头像和昵称
+                user = new User();
+                user.setOpenid(openid);
+                user.setUnionid(unionid);
+                user.setNickname("微信用户" + (1000 + random.nextInt(9000)));
+                user.setAvatarUrl(DEFAULT_AVATARS.get(random.nextInt(DEFAULT_AVATARS.size())));
+                user.setRole("USER");
+                user.setStatus(1);
+                userMapper.insert(user);
+                isNew = true;
+            }
         }
 
         user.setLastLoginAt(LocalDateTime.now());
@@ -250,6 +261,20 @@ public class AuthService {
                 log.warn("Failed to clean refresh token on logout: {}", e.getMessage());
             }
         }
+    }
+
+    /**
+     * 查询已软删除的用户（绕过 @TableLogic 自动过滤）
+     */
+    private User selectDeletedUserByOpenid(String openid) {
+        return userMapper.selectDeletedByOpenid(openid);
+    }
+
+    /**
+     * 恢复已软删除的学生资料（student_profiles 无软删除字段，无需处理）
+     */
+    private void restoreStudentProfile(Long userId) {
+        // student_profiles 表没有 deletedAt 字段，数据仍存在，无需恢复
     }
 
     private LoginResponse buildLoginResponse(User user) {
