@@ -160,6 +160,23 @@ public class AuthService {
             throw new BizException(40900, "该学号已被其他用户认证");
         }
 
+        // 同步学号和手机号到 users 表
+        User user = userMapper.selectById(userId);
+        if (user != null) {
+            boolean needUpdate = false;
+            if (request.getStudentNo() != null && !request.getStudentNo().equals(user.getStudentNo())) {
+                user.setStudentNo(request.getStudentNo());
+                needUpdate = true;
+            }
+            if (request.getPhone() != null && !request.getPhone().isEmpty() && !request.getPhone().equals(user.getPhone())) {
+                user.setPhone(request.getPhone());
+                needUpdate = true;
+            }
+            if (needUpdate) {
+                userMapper.updateById(user);
+            }
+        }
+
         // 更新或创建学生信息
         StudentProfile profile = studentProfileMapper.selectOne(
                 new LambdaQueryWrapper<StudentProfile>().eq(StudentProfile::getUserId, userId));

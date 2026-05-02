@@ -24,4 +24,7 @@ public class StudentVerificationRequest {
 
     @Schema(description = "入学年份", example = "2024")
     private String grade;
+
+    @Schema(description = "手机号", example = "13800138000")
+    private String phone;
 }

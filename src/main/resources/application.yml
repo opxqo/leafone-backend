@@ -32,7 +32,7 @@ mybatis-plus:
     db-config:
       logic-delete-field: deletedAt
       logic-delete-value: NOW()
-      logic-not-delete-value: "NULL"
+      logic-not-delete-value: "null"
       id-type: assign_id
 
 leafone:
