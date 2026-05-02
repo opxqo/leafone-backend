@@ -1,0 +1,28 @@
+# Build
+target/
+*.class
+*.jar
+
+# IDE
+.idea/
+*.iml
+.vscode/
+.settings/
+.classpath
+.project
+.factorypath
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+logs/
+*.log
+
+# Env & local config
+.env
+src/main/resources/application-local.yml
+
+# Claude
+.claude/
