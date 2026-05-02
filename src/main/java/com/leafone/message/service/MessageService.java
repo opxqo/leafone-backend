@@ -1,6 +1,7 @@
 package com.leafone.message.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.toolkit.IdWorker;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.leafone.common.exception.BizException;
 import com.leafone.common.response.PageResult;
@@ -57,5 +58,19 @@ public class MessageService {
         if (!message.getUserId().equals(userId)) throw new BizException(40300, "无权操作此消息");
         message.setReadAt(LocalDateTime.now());
         messageMapper.updateById(message);
+    }
+
+    public void createMessage(Long userId, Long senderId, String type,
+                              String title, String content, String targetType, Long targetId) {
+        Message msg = new Message();
+        msg.setId(IdWorker.getId());
+        msg.setUserId(userId);
+        msg.setSenderId(senderId);
+        msg.setType(type);
+        msg.setTitle(title);
+        msg.setContent(content);
+        msg.setTargetType(targetType);
+        msg.setTargetId(targetId);
+        messageMapper.insert(msg);
     }
 }

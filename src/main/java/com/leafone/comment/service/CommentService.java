@@ -7,9 +7,11 @@ import com.leafone.comment.model.PostComment;
 import com.leafone.comment.service.dto.CommentCreateRequest;
 import com.leafone.common.exception.BizException;
 import com.leafone.common.response.PageResult;
+import com.leafone.message.event.NotificationEvent;
 import com.leafone.post.mapper.PostMapper;
 import com.leafone.post.model.Post;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -19,6 +21,7 @@ public class CommentService {
 
     private final PostCommentMapper commentMapper;
     private final PostMapper postMapper;
+    private final ApplicationEventPublisher eventPublisher;
 
     public PageResult<PostComment> commentList(Long postId, String sort, int page, int pageSize) {
         LambdaQueryWrapper<PostComment> wrapper = new LambdaQueryWrapper<>();
@@ -53,6 +56,18 @@ public class CommentService {
         commentMapper.insert(comment);
 
         postMapper.incrementCommentCount(postId);
+
+        if (!post.getAuthorId().equals(userId)) {
+            eventPublisher.publishEvent(new NotificationEvent(this,
+                    post.getAuthorId(), userId, "COMMENT",
+                    "评论了你的帖子", comment.getContent(), "POST", postId));
+        }
+        if (request.getReplyToUserId() != null && !request.getReplyToUserId().equals(userId)) {
+            eventPublisher.publishEvent(new NotificationEvent(this,
+                    request.getReplyToUserId(), userId, "REPLY",
+                    "回复了你的评论", comment.getContent(), "COMMENT", comment.getId()));
+        }
+
         return comment;
     }
 

@@ -24,5 +24,8 @@ logs/
 .env
 src/main/resources/application-local.yml
 
+# Assets
+logos/
+
 # Claude
 .claude/

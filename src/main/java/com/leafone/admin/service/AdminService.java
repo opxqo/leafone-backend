@@ -9,6 +9,7 @@ import com.leafone.comment.mapper.PostCommentMapper;
 import com.leafone.comment.model.PostComment;
 import com.leafone.common.exception.BizException;
 import com.leafone.common.response.PageResult;
+import com.leafone.message.event.NotificationEvent;
 import com.leafone.message.mapper.MessageMapper;
 import com.leafone.message.model.Message;
 import com.leafone.module.mapper.ModuleMapper;
@@ -26,6 +27,7 @@ import com.leafone.user.model.StudentProfile;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
@@ -50,6 +52,7 @@ public class AdminService {
     private final PostCommentMapper postCommentMapper;
     private final MessageMapper messageMapper;
     private final StudentProfileMapper studentProfileMapper;
+    private final ApplicationEventPublisher eventPublisher;
 
     // ==================== 帖子管理 ====================
 
@@ -70,6 +73,16 @@ public class AdminService {
         if (post == null) throw new BizException(40400, "Post not found");
         post.setStatus(status);
         postMapper.updateById(post);
+
+        String statusText = switch (status) {
+            case 1 -> "已通过审核";
+            case 2 -> "已被隐藏";
+            case 3 -> "已被删除";
+            default -> "状态已变更";
+        };
+        eventPublisher.publishEvent(new NotificationEvent(this,
+                post.getAuthorId(), null, "POST_STATUS",
+                "帖子审核结果", "你的帖子「" + post.getTitle() + "」" + statusText, "POST", postId));
     }
 
     public void togglePostPin(Long postId) {
@@ -161,6 +174,10 @@ public class AdminService {
         if (profile == null) throw new BizException(40400, "该用户未提交学生认证");
         profile.setVerified(approved ? 1 : 2);
         studentProfileMapper.updateById(profile);
+
+        eventPublisher.publishEvent(new NotificationEvent(this,
+                userId, null, "VERIFICATION",
+                "学生认证结果", approved ? "你的学生认证已通过" : "你的学生认证未通过", "USER", userId));
     }
 
     public PageResult<VerificationItem> adminVerifications(Integer verified, int page, int pageSize) {

@@ -61,6 +61,16 @@ public class PostController {
         return R.ok(postService.createPost(request, userId));
     }
 
+    @Operation(summary = "发布草稿", description = "将草稿帖子发布，需登录且为帖子作者")
+    @PostMapping("/posts/{postId}/publish")
+    public R<Void> publishPost(
+            @Parameter(description = "帖子ID") @PathVariable Long postId,
+            @AuthenticationPrincipal Long userId) {
+        AuthUtil.requireLogin(userId);
+        postService.publishPost(postId, userId);
+        return R.ok();
+    }
+
     @Operation(summary = "分享帖子", description = "增加帖子分享计数")
     @PostMapping("/posts/{postId}/share")
     public R<Void> sharePost(@Parameter(description = "帖子ID") @PathVariable Long postId) {

@@ -33,4 +33,7 @@ public class PostCreateRequest {
 
     @Schema(description = "附件列表（非必须，文件直链）")
     private List<AttachmentRequest> attachments;
+
+    @Schema(description = "是否保存为草稿（true=草稿, false=直接发布）", defaultValue = "false")
+    private Boolean draft;
 }

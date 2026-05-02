@@ -23,4 +23,10 @@ public interface PostMapper extends BaseMapper<Post> {
 
     @Update("UPDATE posts SET comment_count = GREATEST(comment_count - 1, 0) WHERE id = #{id}")
     int decrementCommentCount(Long id);
+
+    @Update("UPDATE posts SET favorite_count = favorite_count + 1 WHERE id = #{id}")
+    int incrementFavoriteCount(Long id);
+
+    @Update("UPDATE posts SET favorite_count = GREATEST(favorite_count - 1, 0) WHERE id = #{id}")
+    int decrementFavoriteCount(Long id);
 }

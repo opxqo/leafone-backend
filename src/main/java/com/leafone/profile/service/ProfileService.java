@@ -6,6 +6,7 @@ import com.leafone.auth.mapper.UserMapper;
 import com.leafone.auth.model.User;
 import com.leafone.common.exception.BizException;
 import com.leafone.common.response.PageResult;
+import com.leafone.message.event.NotificationEvent;
 import com.leafone.post.mapper.PostMapper;
 import com.leafone.post.model.Post;
 import com.leafone.profile.mapper.FeedbackMapper;
@@ -18,6 +19,7 @@ import com.leafone.user.mapper.UserFollowMapper;
 import com.leafone.user.model.StudentProfile;
 import com.leafone.user.model.UserFollow;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -39,6 +41,7 @@ public class ProfileService {
     private final ReactionMapper reactionMapper;
     private final FeedbackMapper feedbackMapper;
     private final UserFollowMapper userFollowMapper;
+    private final ApplicationEventPublisher eventPublisher;
 
     public ProfileResponse myProfile(Long userId) {
         User user = userMapper.selectById(userId);
@@ -171,6 +174,12 @@ public class ProfileService {
         follow.setFollowerId(followerId);
         follow.setFollowingId(followingId);
         userFollowMapper.insert(follow);
+
+        User follower = userMapper.selectById(followerId);
+        String nickname = follower != null ? follower.getNickname() : "用户";
+        eventPublisher.publishEvent(new NotificationEvent(this,
+                followingId, followerId, "FOLLOW",
+                "关注了你", nickname + " 关注了你", "USER", followerId));
     }
 
     public void unfollow(Long followerId, Long followingId) {

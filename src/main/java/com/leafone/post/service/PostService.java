@@ -6,6 +6,8 @@ import com.leafone.auth.mapper.UserMapper;
 import com.leafone.auth.model.User;
 import com.leafone.common.exception.BizException;
 import com.leafone.common.response.PageResult;
+import com.leafone.module.mapper.ModuleMapper;
+import com.leafone.module.model.Module;
 import com.leafone.post.mapper.HomeHeadlineMapper;
 import com.leafone.post.mapper.PostAttachmentMapper;
 import com.leafone.post.mapper.PostMapper;
@@ -34,6 +36,7 @@ public class PostService {
     private final ReactionMapper reactionMapper;
     private final UserMapper userMapper;
     private final UserFollowMapper userFollowMapper;
+    private final ModuleMapper moduleMapper;
 
     public HomeResponse home() {
         LambdaQueryWrapper<HomeHeadline> hw = new LambdaQueryWrapper<>();
@@ -94,11 +97,15 @@ public class PostService {
 
     public PostDetailResponse postDetail(Long postId, Long userId) {
         Post post = postMapper.selectById(postId);
-        if (post == null || post.getStatus() != 1) {
+        if (post == null) throw new BizException(40400, "Post not found");
+        if (post.getStatus() == 3) throw new BizException(40400, "Post not found");
+        if (post.getStatus() == 0 && !post.getAuthorId().equals(userId)) {
             throw new BizException(40400, "Post not found");
         }
-        postMapper.incrementViewCount(postId);
-        post.setViewCount(post.getViewCount() + 1);
+        if (post.getStatus() == 1) {
+            postMapper.incrementViewCount(postId);
+            post.setViewCount(post.getViewCount() + 1);
+        }
 
         PostDetailResponse resp = new PostDetailResponse();
         resp.setId(post.getId());
@@ -111,6 +118,10 @@ public class PostService {
         }
 
         resp.setModuleId(post.getModuleId());
+        if (post.getModuleId() != null) {
+            Module module = moduleMapper.selectById(post.getModuleId());
+            if (module != null) resp.setModuleName(module.getName());
+        }
         resp.setTitle(post.getTitle());
         resp.setSummary(post.getSummary());
         resp.setContent(post.getContent());
@@ -155,6 +166,8 @@ public class PostService {
 
     @Transactional(rollbackFor = Exception.class)
     public Post createPost(PostCreateRequest request, Long userId) {
+        boolean isDraft = Boolean.TRUE.equals(request.getDraft());
+
         Post post = new Post();
         post.setAuthorId(userId);
         post.setModuleId(request.getModuleId());
@@ -163,13 +176,13 @@ public class PostService {
         post.setContent(request.getContent());
         post.setCoverUrl(request.getCoverUrl());
         post.setLocationName(request.getLocationName());
-        post.setStatus(1);
+        post.setStatus(isDraft ? 0 : 1);
         post.setViewCount(0);
         post.setShareCount(0);
         post.setCommentCount(0);
         post.setLikeCount(0);
         post.setFavoriteCount(0);
-        post.setPublishedAt(LocalDateTime.now());
+        post.setPublishedAt(isDraft ? null : LocalDateTime.now());
         postMapper.insert(post);
 
         if (request.getAttachments() != null && !request.getAttachments().isEmpty()) {
@@ -198,6 +211,7 @@ public class PostService {
         Post post = postMapper.selectById(postId);
         if (post == null) throw new BizException(40400, "Post not found");
         if (!post.getAuthorId().equals(userId)) throw new BizException(40300, "No permission to edit this post");
+        if (post.getStatus() != 0 && post.getStatus() != 1) throw new BizException(40000, "该帖子无法编辑");
 
         if (request.getModuleId() != null) post.setModuleId(request.getModuleId());
         if (request.getTitle() != null) post.setTitle(request.getTitle());
@@ -233,6 +247,18 @@ public class PostService {
         if (!post.getAuthorId().equals(userId)) throw new BizException(40300, "No permission to delete this post");
 
         post.setStatus(3);
+        postMapper.updateById(post);
+    }
+
+    @Transactional(rollbackFor = Exception.class)
+    public void publishPost(Long postId, Long userId) {
+        Post post = postMapper.selectById(postId);
+        if (post == null) throw new BizException(40400, "Post not found");
+        if (!post.getAuthorId().equals(userId)) throw new BizException(40300, "No permission to publish this post");
+        if (post.getStatus() != 0) throw new BizException(40000, "该帖子不是草稿状态");
+
+        post.setStatus(1);
+        post.setPublishedAt(LocalDateTime.now());
         postMapper.updateById(post);
     }
 }
