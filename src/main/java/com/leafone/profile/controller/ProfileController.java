@@ -32,7 +32,7 @@ public class ProfileController {
     @Operation(summary = "修改个人信息", description = "修改当前登录用户的昵称、头像、性别、宿舍，需登录")
     @PutMapping("/me/profile")
     public R<Void> updateProfile(@AuthenticationPrincipal Long userId,
-                                 @RequestBody ProfileUpdateRequest request) {
+                                 @Valid @RequestBody ProfileUpdateRequest request) {
         AuthUtil.requireLogin(userId);
         profileService.updateProfile(userId, request);
         return R.ok();
@@ -44,6 +44,7 @@ public class ProfileController {
                                            @Parameter(description = "页码") @RequestParam(defaultValue = "1") int page,
                                            @Parameter(description = "每页数量") @RequestParam(defaultValue = "20") int pageSize) {
         AuthUtil.requireLogin(userId);
+        pageSize = PageResult.capPageSize(pageSize);
         return R.ok(profileService.myFavorites(userId, page, pageSize));
     }
 
@@ -53,6 +54,7 @@ public class ProfileController {
                                        @Parameter(description = "页码") @RequestParam(defaultValue = "1") int page,
                                        @Parameter(description = "每页数量") @RequestParam(defaultValue = "20") int pageSize) {
         AuthUtil.requireLogin(userId);
+        pageSize = PageResult.capPageSize(pageSize);
         return R.ok(profileService.myPosts(userId, page, pageSize));
     }
 

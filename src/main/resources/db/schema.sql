@@ -37,6 +37,8 @@ CREATE TABLE student_profiles (
     major VARCHAR(128) NOT NULL DEFAULT '',
     grade VARCHAR(32) NOT NULL DEFAULT '',
     identity_label VARCHAR(32) NOT NULL DEFAULT '',
+    room_name VARCHAR(64) DEFAULT NULL,
+    dorm_password VARCHAR(255) DEFAULT NULL,
     verified TINYINT NOT NULL DEFAULT 0,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -86,7 +88,8 @@ CREATE TABLE posts (
     INDEX idx_posts_module_status_time (module_id, status, published_at),
     INDEX idx_posts_author_time (author_id, published_at),
     INDEX idx_posts_featured_time (is_featured, published_at),
-    INDEX idx_posts_pinned_time (is_pinned, published_at)
+    INDEX idx_posts_pinned_time (is_pinned, published_at),
+    INDEX idx_posts_status_published (status, published_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- 5. post_attachments
@@ -132,7 +135,8 @@ CREATE TABLE post_comments (
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     deleted_at DATETIME DEFAULT NULL,
     INDEX idx_comments_post_time (post_id, created_at),
-    INDEX idx_comments_parent_time (parent_id, created_at)
+    INDEX idx_comments_parent_time (parent_id, created_at),
+    INDEX idx_comments_user_time (user_id, created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- 8. reactions
@@ -144,7 +148,8 @@ CREATE TABLE reactions (
     reaction_type VARCHAR(32) NOT NULL,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     deleted_at DATETIME DEFAULT NULL,
-    UNIQUE INDEX uk_reaction (user_id, target_type, target_id, reaction_type)
+    UNIQUE INDEX uk_reaction (user_id, target_type, target_id, reaction_type),
+    INDEX idx_reaction_target (target_type, target_id, reaction_type, user_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- 9. user_follows
@@ -154,7 +159,8 @@ CREATE TABLE user_follows (
     following_id BIGINT NOT NULL,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     deleted_at DATETIME DEFAULT NULL,
-    UNIQUE INDEX uk_follow (follower_id, following_id)
+    UNIQUE INDEX uk_follow (follower_id, following_id),
+    INDEX idx_follows_following (following_id, follower_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- 10. topics
@@ -200,7 +206,8 @@ CREATE TABLE home_headlines (
     view_count INT NOT NULL DEFAULT 0,
     published_at DATETIME DEFAULT NULL,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_headlines_pinned_published (is_pinned, published_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- 13. dorm_power_records
@@ -224,5 +231,6 @@ CREATE TABLE feedbacks (
     status VARCHAR(32) NOT NULL DEFAULT 'PENDING',
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    INDEX idx_feedbacks_user (user_id)
+    INDEX idx_feedbacks_user (user_id),
+    INDEX idx_feedbacks_status (status)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

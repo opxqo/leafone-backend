@@ -51,11 +51,11 @@ public class MessageService {
         messageMapper.update(update, wrapper);
     }
 
-    public void markRead(Long messageId) {
+    public void markRead(Long messageId, Long userId) {
         Message message = messageMapper.selectById(messageId);
-        if (message != null) {
-            message.setReadAt(LocalDateTime.now());
-            messageMapper.updateById(message);
-        }
+        if (message == null) return;
+        if (!message.getUserId().equals(userId)) throw new BizException(40300, "无权操作此消息");
+        message.setReadAt(LocalDateTime.now());
+        messageMapper.updateById(message);
     }
 }

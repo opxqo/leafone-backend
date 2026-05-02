@@ -25,6 +25,7 @@ public class SearchController {
             @Parameter(description = "搜索类型（all/post）") @RequestParam(defaultValue = "all") String type,
             @Parameter(description = "页码") @RequestParam(defaultValue = "1") int page,
             @Parameter(description = "每页数量") @RequestParam(defaultValue = "20") int pageSize) {
+        pageSize = PageResult.capPageSize(pageSize);
         return R.ok(searchService.search(keyword, type, page, pageSize));
     }
 }

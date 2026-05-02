@@ -18,7 +18,7 @@ public class StudentProfile {
     private String realName;
     @Schema(description = "学号")
     private String studentNo;
-    @Schema(description = "学院")
+    @Schema(description = "学部")
     private String college;
     @Schema(description = "专业")
     private String major;
@@ -26,6 +26,12 @@ public class StudentProfile {
     private String grade;
     @Schema(description = "身份标签")
     private String identityLabel;
+    @Schema(description = "寝室房间号（如 南1-103）")
+    private String roomName;
+    @Schema(description = "电费系统密码（加密存储）")
+    private String dormPassword;
+    @Schema(description = "是否公开电费信息（0=否, 1=是）")
+    private Integer dormPublic;
     @Schema(description = "是否已认证（0=否, 1=是）")
     private Integer verified;
     @TableField(fill = FieldFill.INSERT)

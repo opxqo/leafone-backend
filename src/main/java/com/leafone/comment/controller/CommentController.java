@@ -29,6 +29,7 @@ public class CommentController {
             @Parameter(description = "排序方式（latest=最新, hot=最热）") @RequestParam(required = false, defaultValue = "latest") String sort,
             @Parameter(description = "页码") @RequestParam(defaultValue = "1") int page,
             @Parameter(description = "每页数量") @RequestParam(defaultValue = "20") int pageSize) {
+        pageSize = PageResult.capPageSize(pageSize);
         return R.ok(commentService.commentList(postId, sort, page, pageSize));
     }
 

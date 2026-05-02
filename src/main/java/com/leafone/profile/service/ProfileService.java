@@ -26,6 +26,13 @@ import java.util.List;
 @RequiredArgsConstructor
 public class ProfileService {
 
+    private static Long toLong(Object val) {
+        if (val == null) return 0L;
+        if (val instanceof Long l) return l;
+        if (val instanceof Number n) return n.longValue();
+        return 0L;
+    }
+
     private final UserMapper userMapper;
     private final StudentProfileMapper studentProfileMapper;
     private final PostMapper postMapper;
@@ -57,6 +64,7 @@ public class ProfileService {
     }
 
     public PageResult<Post> myFavorites(Long userId, int page, int pageSize) {
+        // 先查出收藏的帖子ID（带分页）
         Page<Reaction> favPage = reactionMapper.selectPage(new Page<>(page, pageSize),
                 new LambdaQueryWrapper<Reaction>()
                         .eq(Reaction::getUserId, userId)
@@ -68,11 +76,22 @@ public class ProfileService {
         List<Long> postIds = favPage.getRecords().stream()
                 .map(Reaction::getTargetId)
                 .toList();
-        List<Post> posts = postIds.isEmpty()
-                ? List.of()
-                : postMapper.selectBatchIds(postIds).stream()
-                    .filter(p -> p.getStatus() == 1)
-                    .toList();
+        if (postIds.isEmpty()) {
+            return PageResult.of(List.of(), page, pageSize, 0);
+        }
+
+        // 用SQL过滤status=1，而非Java端过滤
+        List<Post> posts = postMapper.selectList(
+                new LambdaQueryWrapper<Post>()
+                        .in(Post::getId, postIds)
+                        .eq(Post::getStatus, 1));
+
+        // 按收藏时间排序保持一致
+        posts.sort((a, b) -> {
+            int idxA = postIds.indexOf(a.getId());
+            int idxB = postIds.indexOf(b.getId());
+            return Integer.compare(idxA, idxB);
+        });
 
         return PageResult.of(posts, page, pageSize, favPage.getTotal());
     }
@@ -116,15 +135,9 @@ public class ProfileService {
                         .eq(Post::getAuthorId, targetUserId)
                         .eq(Post::getStatus, 1)));
 
-        resp.setFollowerCount(userFollowMapper.selectCount(
-                new LambdaQueryWrapper<UserFollow>()
-                        .eq(UserFollow::getFollowingId, targetUserId)
-                        .isNull(UserFollow::getDeletedAt)));
-
-        resp.setFollowingCount(userFollowMapper.selectCount(
-                new LambdaQueryWrapper<UserFollow>()
-                        .eq(UserFollow::getFollowerId, targetUserId)
-                        .isNull(UserFollow::getDeletedAt)));
+        var followCounts = userFollowMapper.selectFollowCounts(targetUserId);
+        resp.setFollowerCount(toLong(followCounts.get("followerCount")));
+        resp.setFollowingCount(toLong(followCounts.get("followingCount")));
 
         if (currentUserId != null && !currentUserId.equals(targetUserId)) {
             resp.setFollowed(userFollowMapper.selectCount(

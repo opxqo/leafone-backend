@@ -125,21 +125,15 @@ public class PostService {
         resp.setFavoriteCount(post.getFavoriteCount());
 
         if (userId != null) {
-            LambdaQueryWrapper<Reaction> likeQ = new LambdaQueryWrapper<>();
-            likeQ.eq(Reaction::getUserId, userId)
-                 .eq(Reaction::getTargetType, "POST")
-                 .eq(Reaction::getTargetId, postId)
-                 .eq(Reaction::getReactionType, "LIKE")
-                 .isNull(Reaction::getDeletedAt);
-            resp.setLiked(reactionMapper.selectCount(likeQ) > 0);
-
-            LambdaQueryWrapper<Reaction> favQ = new LambdaQueryWrapper<>();
-            favQ.eq(Reaction::getUserId, userId)
-                .eq(Reaction::getTargetType, "POST")
-                .eq(Reaction::getTargetId, postId)
-                .eq(Reaction::getReactionType, "FAVORITE")
-                .isNull(Reaction::getDeletedAt);
-            resp.setFavorited(reactionMapper.selectCount(favQ) > 0);
+            LambdaQueryWrapper<Reaction> reactionQ = new LambdaQueryWrapper<>();
+            reactionQ.eq(Reaction::getUserId, userId)
+                     .eq(Reaction::getTargetType, "POST")
+                     .eq(Reaction::getTargetId, postId)
+                     .in(Reaction::getReactionType, "LIKE", "FAVORITE")
+                     .isNull(Reaction::getDeletedAt);
+            List<Reaction> reactions = reactionMapper.selectList(reactionQ);
+            resp.setLiked(reactions.stream().anyMatch(r -> "LIKE".equals(r.getReactionType())));
+            resp.setFavorited(reactions.stream().anyMatch(r -> "FAVORITE".equals(r.getReactionType())));
         }
 
         List<PostAttachment> attachments = postAttachmentMapper.selectList(

@@ -10,6 +10,7 @@ import com.leafone.module.model.Module;
 import com.leafone.post.model.HomeHeadline;
 import com.leafone.post.model.Post;
 import com.leafone.post.model.Topic;
+import com.leafone.profile.model.Feedback;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -18,10 +19,12 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
+
 @Tag(name = "后台管理", description = "管理员专用接口，帖子审核、用户管理、版块/话题/头条管理、通知管理、数据统计等")
 @RestController
 @RequestMapping("/api/v1/admin")
-@PreAuthorize("hasRole('ADMIN')")
+@PreAuthorize("hasAnyRole('ADMIN', 'ORGANIZER')")
 @RequiredArgsConstructor
 public class AdminController {
 
@@ -35,6 +38,7 @@ public class AdminController {
             @Parameter(description = "帖子状态（1=正常, 2=隐藏, 3=删除）") @RequestParam(required = false) Integer status,
             @Parameter(description = "页码") @RequestParam(defaultValue = "1") int page,
             @Parameter(description = "每页数量") @RequestParam(defaultValue = "20") int pageSize) {
+        pageSize = PageResult.capPageSize(pageSize);
         return R.ok(adminService.adminPosts(status, page, pageSize));
     }
 
@@ -44,6 +48,20 @@ public class AdminController {
             @Parameter(description = "帖子ID") @PathVariable Long postId,
             @Parameter(description = "目标状态（1=正常, 2=隐藏, 3=删除）") @RequestParam Integer status) {
         adminService.updatePostStatus(postId, status);
+        return R.ok();
+    }
+
+    @Operation(summary = "切换帖子置顶", description = "管理员切换帖子置顶状态")
+    @PutMapping("/posts/{postId}/pin")
+    public R<Void> togglePostPin(@Parameter(description = "帖子ID") @PathVariable Long postId) {
+        adminService.togglePostPin(postId);
+        return R.ok();
+    }
+
+    @Operation(summary = "切换帖子精选", description = "管理员切换帖子精选状态")
+    @PutMapping("/posts/{postId}/feature")
+    public R<Void> togglePostFeature(@Parameter(description = "帖子ID") @PathVariable Long postId) {
+        adminService.togglePostFeature(postId);
         return R.ok();
     }
 
@@ -57,6 +75,7 @@ public class AdminController {
             @Parameter(description = "状态筛选（1=正常, 2=封禁）") @RequestParam(required = false) Integer status,
             @Parameter(description = "页码") @RequestParam(defaultValue = "1") int page,
             @Parameter(description = "每页数量") @RequestParam(defaultValue = "20") int pageSize) {
+        pageSize = PageResult.capPageSize(pageSize);
         return R.ok(adminService.adminUsers(keyword, role, status, page, pageSize));
     }
 
@@ -64,6 +83,29 @@ public class AdminController {
     @GetMapping("/users/{userId}")
     public R<User> userDetail(@Parameter(description = "用户ID") @PathVariable Long userId) {
         return R.ok(adminService.userDetail(userId));
+    }
+
+    @Operation(summary = "删除用户", description = "管理员删除用户（软删除）")
+    @DeleteMapping("/users/{userId}")
+    public R<Void> deleteUser(@Parameter(description = "用户ID") @PathVariable Long userId) {
+        adminService.deleteUser(userId);
+        return R.ok();
+    }
+
+    @Operation(summary = "编辑用户", description = "管理员编辑用户资料")
+    @PutMapping("/users/{userId}")
+    public R<Void> updateUser(
+            @Parameter(description = "用户ID") @PathVariable Long userId,
+            @Valid @RequestBody UserUpdateRequest request) {
+        adminService.updateUser(userId, request);
+        return R.ok();
+    }
+
+    @Operation(summary = "封禁用户", description = "封禁指定用户")
+    @PutMapping("/users/{userId}/ban")
+    public R<Void> banUser(@Parameter(description = "用户ID") @PathVariable Long userId) {
+        adminService.banUser(userId);
+        return R.ok();
     }
 
     @Operation(summary = "解封用户", description = "解除用户封禁状态")
@@ -77,7 +119,7 @@ public class AdminController {
     @PutMapping("/users/{userId}/role")
     public R<Void> updateUserRole(
             @Parameter(description = "用户ID") @PathVariable Long userId,
-            @Parameter(description = "目标角色（USER/ADMIN）") @RequestParam String role) {
+            @Parameter(description = "目标角色（USER/ADMIN/ORGANIZER）") @RequestParam String role) {
         adminService.updateUserRole(userId, role);
         return R.ok();
     }
@@ -91,7 +133,24 @@ public class AdminController {
         return R.ok();
     }
 
+    @Operation(summary = "学生认证列表", description = "查看学生认证申请列表，可按认证状态筛选")
+    @GetMapping("/verifications")
+    public R<PageResult<VerificationItem>> adminVerifications(
+            @Parameter(description = "认证状态（0=待审核, 1=已通过, 2=已拒绝）") @RequestParam(required = false) Integer verified,
+            @Parameter(description = "页码") @RequestParam(defaultValue = "1") int page,
+            @Parameter(description = "每页数量") @RequestParam(defaultValue = "20") int pageSize) {
+        pageSize = PageResult.capPageSize(pageSize);
+        return R.ok(adminService.adminVerifications(verified, page, pageSize));
+    }
+
     // ==================== 版块管理 ====================
+
+    @Operation(summary = "版块列表", description = "管理员查看所有版块，可按启用状态筛选")
+    @GetMapping("/modules")
+    public R<List<Module>> adminModules(
+            @Parameter(description = "启用状态（0=禁用, 1=启用）") @RequestParam(required = false) Integer enabled) {
+        return R.ok(adminService.adminModules(enabled));
+    }
 
     @Operation(summary = "创建版块", description = "管理员创建新论坛版块")
     @PostMapping("/modules")
@@ -116,6 +175,13 @@ public class AdminController {
     }
 
     // ==================== 话题管理 ====================
+
+    @Operation(summary = "话题列表", description = "管理员查看所有话题，可按启用状态筛选")
+    @GetMapping("/topics")
+    public R<List<Topic>> adminTopics(
+            @Parameter(description = "启用状态（0=禁用, 1=启用）") @RequestParam(required = false) Integer enabled) {
+        return R.ok(adminService.adminTopics(enabled));
+    }
 
     @Operation(summary = "创建话题", description = "管理员创建新话题")
     @PostMapping("/topics")
@@ -146,6 +212,7 @@ public class AdminController {
     public R<PageResult<HomeHeadline>> adminHeadlines(
             @Parameter(description = "页码") @RequestParam(defaultValue = "1") int page,
             @Parameter(description = "每页数量") @RequestParam(defaultValue = "20") int pageSize) {
+        pageSize = PageResult.capPageSize(pageSize);
         return R.ok(adminService.adminHeadlines(page, pageSize));
     }
 
@@ -180,6 +247,7 @@ public class AdminController {
             @Parameter(description = "用户ID") @RequestParam(required = false) Long userId,
             @Parameter(description = "页码") @RequestParam(defaultValue = "1") int page,
             @Parameter(description = "每页数量") @RequestParam(defaultValue = "20") int pageSize) {
+        pageSize = PageResult.capPageSize(pageSize);
         return R.ok(adminService.adminComments(postId, userId, page, pageSize));
     }
 
@@ -190,7 +258,26 @@ public class AdminController {
         return R.ok();
     }
 
+    @Operation(summary = "修改评论状态", description = "管理员修改评论状态（1=正常, 2=隐藏, 3=删除）")
+    @PutMapping("/comments/{commentId}/status")
+    public R<Void> updateCommentStatus(
+            @Parameter(description = "评论ID") @PathVariable Long commentId,
+            @Parameter(description = "目标状态（1=正常, 2=隐藏, 3=删除）") @RequestParam Integer status) {
+        adminService.updateCommentStatus(commentId, status);
+        return R.ok();
+    }
+
     // ==================== 反馈处理 ====================
+
+    @Operation(summary = "反馈列表", description = "管理员查看用户反馈列表，可按状态筛选")
+    @GetMapping("/feedbacks")
+    public R<PageResult<Feedback>> adminFeedbacks(
+            @Parameter(description = "反馈状态（PENDING/RESOLVED/REJECTED）") @RequestParam(required = false) String status,
+            @Parameter(description = "页码") @RequestParam(defaultValue = "1") int page,
+            @Parameter(description = "每页数量") @RequestParam(defaultValue = "20") int pageSize) {
+        pageSize = PageResult.capPageSize(pageSize);
+        return R.ok(adminService.adminFeedbacks(status, page, pageSize));
+    }
 
     @Operation(summary = "修改反馈状态", description = "管理员处理反馈，修改反馈状态")
     @PutMapping("/feedbacks/{feedbackId}/status")
@@ -207,6 +294,14 @@ public class AdminController {
     @GetMapping("/stats")
     public R<AdminStatsResponse> stats() {
         return R.ok(adminService.stats());
+    }
+
+    // ==================== 缓存监控 ====================
+
+    @Operation(summary = "Redis缓存状态", description = "查看Redis连接状态、服务器信息、电费缓存和认证缓存详情")
+    @GetMapping("/cache/status")
+    public R<CacheStatusResponse> cacheStatus() {
+        return R.ok(adminService.cacheStatus());
     }
 
     // ==================== 通知管理 ====================

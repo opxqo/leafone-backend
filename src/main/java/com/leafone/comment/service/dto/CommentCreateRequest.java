@@ -10,9 +10,6 @@ import lombok.Data;
 @Schema(description = "发表评论请求")
 public class CommentCreateRequest {
 
-    @Schema(description = "帖子ID（从URL路径自动获取，无需传入）")
-    private Long postId;
-
     @NotBlank
     @Size(max = 1000)
     @Schema(description = "评论内容", example = "说得好！")

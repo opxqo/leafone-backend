@@ -12,6 +12,7 @@ import com.leafone.post.service.dto.PostUpdateRequest;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
@@ -40,6 +41,7 @@ public class PostController {
             @Parameter(description = "页码") @RequestParam(defaultValue = "1") int page,
             @Parameter(description = "每页数量") @RequestParam(defaultValue = "20") int pageSize,
             @AuthenticationPrincipal Long userId) {
+        pageSize = PageResult.capPageSize(pageSize);
         return R.ok(postService.postList(moduleId, tab, feed, keyword, page, pageSize, userId));
     }
 
@@ -53,7 +55,7 @@ public class PostController {
 
     @Operation(summary = "发布帖子", description = "创建新帖子，需登录")
     @PostMapping("/posts")
-    public R<Post> createPost(@RequestBody PostCreateRequest request,
+    public R<Post> createPost(@Valid @RequestBody PostCreateRequest request,
                               @AuthenticationPrincipal Long userId) {
         AuthUtil.requireLogin(userId);
         return R.ok(postService.createPost(request, userId));
@@ -70,7 +72,7 @@ public class PostController {
     @PutMapping("/posts/{postId}")
     public R<Post> updatePost(
             @Parameter(description = "帖子ID") @PathVariable Long postId,
-            @RequestBody PostUpdateRequest request,
+            @Valid @RequestBody PostUpdateRequest request,
             @AuthenticationPrincipal Long userId) {
         AuthUtil.requireLogin(userId);
         return R.ok(postService.updatePost(postId, request, userId));

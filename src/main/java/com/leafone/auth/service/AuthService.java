@@ -226,6 +226,7 @@ public class AuthService {
                 throw new BizException(40100, "Refresh token revoked or expired");
             }
             redisTemplate.delete("auth:refresh:" + refreshToken);
+            redisTemplate.opsForSet().remove("auth:user_tokens:" + storedUserId, refreshToken);
         }
 
         User user = userMapper.selectById(userId);
@@ -237,14 +238,13 @@ public class AuthService {
     public void logout(Long userId) {
         if (redisTemplate != null) {
             try {
-                var keys = redisTemplate.keys("auth:refresh:*");
-                if (keys != null) {
-                    for (String key : keys) {
-                        String val = redisTemplate.opsForValue().get(key);
-                        if (String.valueOf(userId).equals(val)) {
-                            redisTemplate.delete(key);
-                        }
+                String userTokensKey = "auth:user_tokens:" + userId;
+                var tokens = redisTemplate.opsForSet().members(userTokensKey);
+                if (tokens != null && !tokens.isEmpty()) {
+                    for (String token : tokens) {
+                        redisTemplate.delete("auth:refresh:" + token);
                     }
+                    redisTemplate.delete(userTokensKey);
                 }
             } catch (Exception e) {
                 log.warn("Failed to clean refresh token on logout: {}", e.getMessage());
@@ -261,10 +261,14 @@ public class AuthService {
 
         if (redisTemplate != null) {
             try {
+                String refreshToken = response.getRefreshToken();
+                String userIdStr = String.valueOf(user.getId());
                 redisTemplate.opsForValue().set(
-                        "auth:refresh:" + response.getRefreshToken(),
-                        String.valueOf(user.getId()),
+                        "auth:refresh:" + refreshToken,
+                        userIdStr,
                         7, TimeUnit.DAYS);
+                redisTemplate.opsForSet().add("auth:user_tokens:" + userIdStr, refreshToken);
+                redisTemplate.expire("auth:user_tokens:" + userIdStr, 7, TimeUnit.DAYS);
             } catch (Exception e) {
                 log.warn("Failed to store refresh token in Redis: {}", e.getMessage());
             }

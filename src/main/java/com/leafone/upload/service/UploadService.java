@@ -1,11 +1,17 @@
 package com.leafone.upload.service;
 
+import com.leafone.post.mapper.FileMapper;
+import com.leafone.post.model.File;
 import com.leafone.upload.service.dto.CosCredentialResponse;
+import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 @Service
+@RequiredArgsConstructor
 public class UploadService {
+
+    private final FileMapper fileMapper;
 
     @Value("${leafone.cos.secret-id:}")
     private String cosSecretId;
@@ -29,6 +35,19 @@ public class UploadService {
     }
 
     public void completeUpload(Long fileId, String url, Long userId) {
-        // TODO: save file record to database
+        File file = fileMapper.selectById(fileId);
+        if (file == null) {
+            file = new File();
+            file.setId(fileId);
+            file.setOwnerId(userId);
+            file.setBucket(cosBucket);
+            file.setUrl(url);
+            file.setStatus(1);
+            fileMapper.insert(file);
+        } else {
+            file.setUrl(url);
+            file.setStatus(1);
+            fileMapper.updateById(file);
+        }
     }
 }

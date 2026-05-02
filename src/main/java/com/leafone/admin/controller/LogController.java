@@ -66,21 +66,15 @@ public class LogController {
             @Parameter(description = "日志文件名") @PathVariable String fileName,
             @Parameter(description = "读取行数（默认200）") @RequestParam(defaultValue = "200") int lines) {
         checkEnabled();
+        Path file = resolveLogFile(fileName);
 
-        // 防止路径穿越
-        if (fileName.contains("..") || fileName.contains("/") || fileName.contains("\\")) {
-            throw new BizException(40000, "Invalid file name");
-        }
-
-        Path file = Paths.get(logHome, fileName);
-        if (!Files.exists(file) || !file.toString().endsWith(".log")) {
-            throw new BizException(40400, "Log file not found");
-        }
-
-        try {
-            List<String> allLines = Files.readAllLines(file, StandardCharsets.UTF_8);
-            int from = Math.max(0, allLines.size() - lines);
-            return R.ok(allLines.subList(from, allLines.size()));
+        try (Stream<String> stream = Files.lines(file, StandardCharsets.UTF_8)) {
+            Deque<String> buffer = new ArrayDeque<>(lines);
+            stream.forEach(line -> {
+                if (buffer.size() >= lines) buffer.pollFirst();
+                buffer.addLast(line);
+            });
+            return R.ok(new ArrayList<>(buffer));
         } catch (IOException e) {
             throw new BizException(50000, "Failed to read log file: " + e.getMessage());
         }
@@ -93,15 +87,7 @@ public class LogController {
             @Parameter(description = "搜索关键词") @RequestParam String keyword,
             @Parameter(description = "最大返回行数（默认100）") @RequestParam(defaultValue = "100") int limit) {
         checkEnabled();
-
-        if (fileName.contains("..") || fileName.contains("/") || fileName.contains("\\")) {
-            throw new BizException(40000, "Invalid file name");
-        }
-
-        Path file = Paths.get(logHome, fileName);
-        if (!Files.exists(file) || !file.toString().endsWith(".log")) {
-            throw new BizException(40400, "Log file not found");
-        }
+        Path file = resolveLogFile(fileName);
 
         try {
             List<String> matched = new ArrayList<>();
@@ -114,6 +100,17 @@ public class LogController {
         } catch (IOException e) {
             throw new BizException(50000, "Failed to search log file: " + e.getMessage());
         }
+    }
+
+    private Path resolveLogFile(String fileName) {
+        if (fileName.contains("..") || fileName.contains("/") || fileName.contains("\\")) {
+            throw new BizException(40000, "Invalid file name");
+        }
+        Path file = Paths.get(logHome, fileName);
+        if (!Files.exists(file) || !file.toString().endsWith(".log")) {
+            throw new BizException(40400, "Log file not found");
+        }
+        return file;
     }
 
     private void checkEnabled() {

@@ -1,6 +1,7 @@
 package com.leafone.auth.model;
 
 import com.baomidou.mybatisplus.annotation.*;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 import java.time.LocalDateTime;
@@ -23,6 +24,7 @@ public class User {
     @Schema(description = "宿舍")
     private String dorm;
     @Schema(description = "密码哈希")
+    @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
     private String passwordHash;
     @Schema(description = "昵称")
     private String nickname;

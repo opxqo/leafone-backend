@@ -49,5 +49,7 @@ leafone:
     bucket: ${COS_BUCKET:}
     region: ${COS_REGION:ap-shanghai}
   cdn-domain: ${CDN_DOMAIN:}
+  cors:
+    allowed-origins: ${CORS_ORIGINS:http://localhost:3006,http://localhost:3007,http://localhost:3008}
   log:
     enabled: ${LOG_ENDPOINT_ENABLED:true}  # 生产环境设为 false 关闭日志查看接口

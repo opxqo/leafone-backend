@@ -24,13 +24,19 @@ import com.leafone.profile.model.Feedback;
 import com.leafone.user.mapper.StudentProfileMapper;
 import com.leafone.user.model.StudentProfile;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
+import java.util.*;
+import java.util.Objects;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.List;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class AdminService {
@@ -57,11 +63,27 @@ public class AdminService {
     }
 
     public void updatePostStatus(Long postId, Integer status) {
-        Post post = postMapper.selectById(postId);
-        if (post != null) {
-            post.setStatus(status);
-            postMapper.updateById(post);
+        if (status == null || (status != 1 && status != 2 && status != 3)) {
+            throw new BizException(40000, "无效的状态值，仅支持 1=正常/2=隐藏/3=删除");
         }
+        Post post = postMapper.selectById(postId);
+        if (post == null) throw new BizException(40400, "Post not found");
+        post.setStatus(status);
+        postMapper.updateById(post);
+    }
+
+    public void togglePostPin(Long postId) {
+        Post post = postMapper.selectById(postId);
+        if (post == null) throw new BizException(40400, "Post not found");
+        post.setIsPinned(post.getIsPinned() != null && post.getIsPinned() == 1 ? 0 : 1);
+        postMapper.updateById(post);
+    }
+
+    public void togglePostFeature(Long postId) {
+        Post post = postMapper.selectById(postId);
+        if (post == null) throw new BizException(40400, "Post not found");
+        post.setIsFeatured(post.getIsFeatured() != null && post.getIsFeatured() == 1 ? 0 : 1);
+        postMapper.updateById(post);
     }
 
     // ==================== 用户管理 ====================
@@ -91,18 +113,45 @@ public class AdminService {
         return user;
     }
 
+    public void deleteUser(Long userId) {
+        User user = userMapper.selectById(userId);
+        if (user == null) throw new BizException(40400, "User not found");
+        userMapper.deleteById(userId);
+    }
+
+    public void banUser(Long userId) {
+        User user = userMapper.selectById(userId);
+        if (user == null) throw new BizException(40400, "User not found");
+        user.setStatus(2);
+        userMapper.updateById(user);
+    }
+
     public void unbanUser(Long userId) {
         User user = userMapper.selectById(userId);
-        if (user != null) {
-            user.setStatus(1);
-            userMapper.updateById(user);
-        }
+        if (user == null) throw new BizException(40400, "User not found");
+        user.setStatus(1);
+        userMapper.updateById(user);
     }
 
     public void updateUserRole(Long userId, String role) {
+        if (!"USER".equals(role) && !"ADMIN".equals(role) && !"ORGANIZER".equals(role)) {
+            throw new BizException(40000, "无效的角色值，仅支持 USER/ADMIN/ORGANIZER");
+        }
         User user = userMapper.selectById(userId);
         if (user == null) throw new BizException(40400, "User not found");
         user.setRole(role);
+        userMapper.updateById(user);
+    }
+
+    public void updateUser(Long userId, UserUpdateRequest request) {
+        User user = userMapper.selectById(userId);
+        if (user == null) throw new BizException(40400, "User not found");
+        if (request.getNickname() != null) user.setNickname(request.getNickname());
+        if (request.getPhone() != null) user.setPhone(request.getPhone());
+        if (request.getStudentNo() != null) user.setStudentNo(request.getStudentNo());
+        if (request.getDorm() != null) user.setDorm(request.getDorm());
+        if (request.getAvatarUrl() != null) user.setAvatarUrl(request.getAvatarUrl());
+        if (request.getGender() != null) user.setGender(request.getGender());
         userMapper.updateById(user);
     }
 
@@ -114,7 +163,47 @@ public class AdminService {
         studentProfileMapper.updateById(profile);
     }
 
+    public PageResult<VerificationItem> adminVerifications(Integer verified, int page, int pageSize) {
+        LambdaQueryWrapper<StudentProfile> wrapper = new LambdaQueryWrapper<>();
+        if (verified != null) {
+            wrapper.eq(StudentProfile::getVerified, verified);
+        }
+        wrapper.orderByDesc(StudentProfile::getCreatedAt);
+
+        Page<StudentProfile> result = studentProfileMapper.selectPage(new Page<>(page, pageSize), wrapper);
+
+        List<Long> userIds = result.getRecords().stream()
+                .map(StudentProfile::getUserId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+
+        Map<Long, User> userMap = userIds.isEmpty()
+                ? Map.of()
+                : userMapper.selectBatchIds(userIds).stream()
+                    .collect(java.util.stream.Collectors.toMap(User::getId, u -> u));
+
+        List<VerificationItem> items = result.getRecords().stream()
+                .map(profile -> {
+                    User user = userMap.get(profile.getUserId());
+                    return user != null ? VerificationItem.from(user, profile) : null;
+                })
+                .filter(Objects::nonNull)
+                .toList();
+
+        return PageResult.of(items, page, pageSize, result.getTotal());
+    }
+
     // ==================== 版块管理 ====================
+
+    public List<Module> adminModules(Integer enabled) {
+        LambdaQueryWrapper<Module> wrapper = new LambdaQueryWrapper<>();
+        if (enabled != null) {
+            wrapper.eq(Module::getEnabled, enabled);
+        }
+        wrapper.orderByAsc(Module::getSortOrder).orderByDesc(Module::getCreatedAt);
+        return moduleMapper.selectList(wrapper);
+    }
 
     public Module createModule(ModuleCreateRequest request) {
         Module module = new Module();
@@ -146,6 +235,15 @@ public class AdminService {
     }
 
     // ==================== 话题管理 ====================
+
+    public List<Topic> adminTopics(Integer enabled) {
+        LambdaQueryWrapper<Topic> wrapper = new LambdaQueryWrapper<>();
+        if (enabled != null) {
+            wrapper.eq(Topic::getEnabled, enabled);
+        }
+        wrapper.orderByDesc(Topic::getHeatScore).orderByDesc(Topic::getCreatedAt);
+        return topicMapper.selectList(wrapper);
+    }
 
     public Topic createTopic(TopicCreateRequest request) {
         Topic topic = new Topic();
@@ -227,16 +325,38 @@ public class AdminService {
 
     public void deleteComment(Long commentId) {
         PostComment comment = postCommentMapper.selectById(commentId);
-        if (comment != null) {
-            comment.setStatus(3);
-            postCommentMapper.updateById(comment);
-            postMapper.decrementCommentCount(comment.getPostId());
+        if (comment == null) throw new BizException(40400, "Comment not found");
+        comment.setStatus(3);
+        postCommentMapper.updateById(comment);
+        postMapper.decrementCommentCount(comment.getPostId());
+    }
+
+    public void updateCommentStatus(Long commentId, Integer status) {
+        if (status == null || (status != 1 && status != 2 && status != 3)) {
+            throw new BizException(40000, "无效的状态值，仅支持 1=正常/2=隐藏/3=删除");
         }
+        PostComment comment = postCommentMapper.selectById(commentId);
+        if (comment == null) throw new BizException(40400, "Comment not found");
+        comment.setStatus(status);
+        postCommentMapper.updateById(comment);
     }
 
     // ==================== 反馈处理 ====================
 
+    public PageResult<Feedback> adminFeedbacks(String status, int page, int pageSize) {
+        LambdaQueryWrapper<Feedback> wrapper = new LambdaQueryWrapper<>();
+        if (status != null && !status.isBlank()) {
+            wrapper.eq(Feedback::getStatus, status);
+        }
+        wrapper.orderByDesc(Feedback::getCreatedAt);
+        Page<Feedback> result = feedbackMapper.selectPage(new Page<>(page, pageSize), wrapper);
+        return PageResult.of(result.getRecords(), page, pageSize, result.getTotal());
+    }
+
     public void updateFeedbackStatus(Long feedbackId, String status) {
+        if (!"PENDING".equals(status) && !"RESOLVED".equals(status) && !"REJECTED".equals(status)) {
+            throw new BizException(40000, "无效的状态值，仅支持 PENDING/RESOLVED/REJECTED");
+        }
         Feedback feedback = feedbackMapper.selectById(feedbackId);
         if (feedback == null) throw new BizException(40400, "Feedback not found");
         feedback.setStatus(status);
@@ -279,8 +399,11 @@ public class AdminService {
             targetUserIds = users.stream().map(User::getId).toList();
         }
 
-        for (Long uid : targetUserIds) {
+        if (targetUserIds.isEmpty()) return;
+
+        List<Message> messages = targetUserIds.stream().map(uid -> {
             Message msg = new Message();
+            msg.setId(com.baomidou.mybatisplus.core.toolkit.IdWorker.getId());
             msg.setUserId(uid);
             msg.setSenderId(null);
             msg.setType("SYSTEM");
@@ -288,7 +411,94 @@ public class AdminService {
             msg.setContent(request.getContent());
             msg.setTargetType(request.getTargetType());
             msg.setTargetId(request.getTargetId());
-            messageMapper.insert(msg);
+            return msg;
+        }).toList();
+
+        messageMapper.insertBatch(messages);
+    }
+
+    // ==================== 缓存监控 ====================
+
+    @Autowired(required = false)
+    private StringRedisTemplate redisTemplate;
+
+    public CacheStatusResponse cacheStatus() {
+        CacheStatusResponse resp = new CacheStatusResponse();
+
+        if (redisTemplate == null) {
+            resp.setAvailable(false);
+            return resp;
         }
+
+        try {
+            // 测试连接
+            redisTemplate.getConnectionFactory().getConnection().ping();
+            resp.setAvailable(true);
+        } catch (Exception e) {
+            log.warn("Redis connection failed: {}", e.getMessage());
+            resp.setAvailable(false);
+            return resp;
+        }
+
+        // 获取 Redis 服务器信息
+        resp.setInfo(getRedisInfo());
+
+        // 获取电费相关缓存
+        resp.setDormPowerCaches(scanCacheEntries("dorm_power:*"));
+
+        // 获取认证相关缓存
+        resp.setAuthCaches(scanCacheEntries("auth:*"));
+
+        return resp;
+    }
+
+    private CacheStatusResponse.RedisInfo getRedisInfo() {
+        CacheStatusResponse.RedisInfo info = new CacheStatusResponse.RedisInfo();
+        try {
+            var conn = redisTemplate.getConnectionFactory().getConnection();
+            Properties props = conn.serverCommands().info();
+
+            if (props != null) {
+                info.setVersion(props.getProperty("redis_version", ""));
+                info.setUsedMemory(props.getProperty("used_memory_human", ""));
+                info.setConnectedClients(props.getProperty("connected_clients", ""));
+                info.setUptimeDays(props.getProperty("uptime_in_days", ""));
+            }
+
+            Long dbSize = conn.serverCommands().dbSize();
+            info.setTotalKeys(dbSize != null ? String.valueOf(dbSize) : "0");
+        } catch (Exception e) {
+            log.warn("Failed to get Redis info: {}", e.getMessage());
+        }
+        return info;
+    }
+
+    private List<CacheStatusResponse.CacheEntry> scanCacheEntries(String pattern) {
+        List<CacheStatusResponse.CacheEntry> entries = new ArrayList<>();
+        try {
+            Set<String> keys = redisTemplate.keys(pattern);
+            if (keys == null) return entries;
+
+            for (String key : keys) {
+                CacheStatusResponse.CacheEntry entry = new CacheStatusResponse.CacheEntry();
+                entry.setKey(key);
+
+                Long ttl = redisTemplate.getExpire(key);
+                entry.setTtlSeconds(ttl != null && ttl > 0 ? ttl : null);
+
+                String value = redisTemplate.opsForValue().get(key);
+                // 脱敏：session 类的值只显示前 8 位
+                if (key.contains("session")) {
+                    entry.setValue(value != null ? value.substring(0, Math.min(8, value.length())) + "..." : null);
+                } else {
+                    entry.setValue(value);
+                }
+
+                entries.add(entry);
+            }
+        } catch (Exception e) {
+            log.warn("Failed to scan cache entries: {}", e.getMessage());
+        }
+        return entries;
     }
 }

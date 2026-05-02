@@ -16,7 +16,7 @@ public class StudentVerificationRequest {
     private String studentNo;
 
     @NotBlank
-    @Schema(description = "学院", example = "计算机学院")
+    @Schema(description = "学部", example = "计算机学部")
     private String college;
 
     @Schema(description = "专业", example = "软件工程")

@@ -60,6 +60,7 @@ public class CommentService {
     public void deleteComment(Long commentId, Long userId) {
         PostComment comment = commentMapper.selectById(commentId);
         if (comment == null) throw new BizException(40400, "Comment not found");
+        if (!comment.getUserId().equals(userId)) throw new BizException(40300, "只能删除自己的评论");
 
         comment.setStatus(3);
         commentMapper.updateById(comment);

@@ -36,6 +36,7 @@ public class MessageController {
             @Parameter(description = "每页数量") @RequestParam(defaultValue = "20") int pageSize,
             @AuthenticationPrincipal Long userId) {
         AuthUtil.requireLogin(userId);
+        pageSize = PageResult.capPageSize(pageSize);
         return R.ok(messageService.messageList(userId, type, page, pageSize));
     }
 
@@ -53,7 +54,7 @@ public class MessageController {
             @Parameter(description = "消息ID") @PathVariable Long messageId,
             @AuthenticationPrincipal Long userId) {
         AuthUtil.requireLogin(userId);
-        messageService.markRead(messageId);
+        messageService.markRead(messageId, userId);
         return R.ok();
     }
 }

@@ -12,8 +12,6 @@ public class R<T> {
     private String message;
     @Schema(description = "响应数据")
     private T data;
-    @Schema(description = "请求追踪ID")
-    private String requestId;
 
     public static <T> R<T> ok(T data) {
         R<T> r = new R<>();

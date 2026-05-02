@@ -2,11 +2,15 @@ package com.leafone.common.response;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
+
 import java.util.List;
 
 @Data
 @Schema(description = "分页结果")
 public class PageResult<T> {
+
+    public static final int MAX_PAGE_SIZE = 100;
+
     @Schema(description = "数据列表")
     private List<T> items;
     @Schema(description = "当前页码", example = "1")
@@ -26,5 +30,9 @@ public class PageResult<T> {
         result.setTotal(total);
         result.setHasMore((long) page * pageSize < total);
         return result;
+    }
+
+    public static int capPageSize(int pageSize) {
+        return Math.min(Math.max(pageSize, 1), MAX_PAGE_SIZE);
     }
 }
